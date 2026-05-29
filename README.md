@@ -1,297 +1,580 @@
-# 🎵 Spotify Multidimensional Data Visualization
+# SoundScope — **Visualización Multidimensional de Datos de Spotify**
+By: Ricardo Amiel Acuña Villogas
 
-Aplicación web interactiva con **Flask + D3.js v7** que implementa las cuatro técnicas de visualización multidimensional del curso DS5343 sobre el dataset de Spotify.
-
-**Curso:** DS5343 - Data Visualization
-**Institución:** Universidad de Ingeniería y Tecnología (UTEC)
-**Profesor:** Germain Garcia-Zanabria
-**Autor:** Ricardo Amiel Acuña Villogas
-**Dataset:** Kaggle Spotify — 170,653 tracks, 10 dimensiones de audio
+Boceto inicial en observable:: https://observablehq.com/d/bf7ebbd7f7c99696
 
 ---
 
-## 📊 Visualizaciones implementadas
+## Tabla de contenidos
 
-### 1. RadViz — Dimensional Anchoring
+1. [Introducción](#1-introducción)
+2. [Dataset y preprocesamiento](#2-dataset-y-preprocesamiento)
+3. [Arquitectura del sistema](#3-arquitectura-del-sistema)
+4. [Tareas analíticas](#4-tareas-analíticas)
+5. [Visualizaciones multidimensionales](#5-visualizaciones-multidimensionales)
+   - 5.1 [RadViz](#51-radviz)
+   - 5.2 [Star Coordinates](#52-star-coordinates)
+   - 5.3 [Parallel Coordinates](#53-parallel-coordinates)
+   - 5.4 [PCA](#54-pca--principal-component-analysis)
+   - 5.5 [t-SNE](#55-t-sne)
+   - 5.6 [UMAP](#56-umap)
+6. [Visualizaciones de soporte](#6-visualizaciones-de-soporte)
+   - 6.1 [Joyplot temporal](#61-joyplot-temporal)
+   - 6.2 [Treemap de géneros](#62-treemap-de-géneros)
+   - 6.3 [Correlación de features](#63-matriz-de-correlación)
+   - 6.4 [Explicit rate](#64-explicit-rate-a-lo-largo-del-tiempo)
+   - 6.5 [Duración y Loudness War](#65-duración-y-loudness-war)
+   - 6.6 [Red de artistas (Ego Network)](#66-red-de-artistas--ego-network)
+   - 6.7 [Radar de artista](#67-radar-de-artista)
+7. [Sistema de interacción coordinada](#7-sistema-de-interacción-coordinada)
+8. [Insights descubiertos](#8-insights-descubiertos)
+9. [Stack técnico](#9-stack-técnico)
+10. [Instrucciones de ejecución](#10-instrucciones-de-ejecución)
 
-**Fórmula:**
+---
+
+## 1. Introducción
+
+SoundScope es un sistema de visualización multidimensional interactivo construido sobre el dataset de Spotify de Kaggle. El objetivo es revelar patrones latentes en 100 años de música a través de técnicas de visualización de alta dimensionalidad, permitiendo al usuario explorar más de 2 000 géneros musicales, sus relaciones sonoras, su evolución temporal y los artistas que los definen.
+
+El sistema implementa cuatro técnicas de visualización multidimensional obligatorias (RadViz, Star Coordinates, Parallel Coordinates y proyecciones de reducción de dimensionalidad), más un conjunto de visualizaciones de soporte que permiten exploración libre de los datos.
+
+Toda la interfaz está construida con **D3.js v7** en el frontend y **Flask** en el backend. Las vistas están **coordinadas mediante un sistema de brush global**: cualquier selección en cualquier gráfico se propaga a todas las demás vistas simultáneamente.
+
+---
+
+## 2. Dataset y preprocesamiento
+
+### 2.1 Los 5 archivos CSV utilizados
+
+| Archivo | Filas | Descripción | Uso principal |
+|---|---|---|---|
+| `data.csv` | 170 653 | Tracks individuales con nombre, artista, año, explicit | Calcular tasa de contenido explícito por año |
+| `data_by_year.csv` | 100 | Promedio de features por año (1921–2020) | Joyplot temporal, duración, loudness |
+| `data_by_genres.csv` | 2 973 | Promedio de features por género | **Fuente principal**: RadViz, Star, Parallel, PCA, t-SNE, UMAP |
+| `data_w_genres.csv` | 28 680 | Artistas con sus géneros como lista parseada | Red de artistas, treemap de familias |
+| `data_by_artist.csv` | 28 680 | Promedio de features por artista + conteo | Bar chart, radar de artista |
+
+### 2.2 Pipeline de preprocesamiento
+
+El script `preprocess.py` ejecuta los siguientes pasos antes de iniciar la aplicación:
+
+**Paso 1 — Filtrado de géneros**
+De los 2 973 géneros totales se retienen solo aquellos con popularidad > 35, resultando en **2 092 géneros** representativos. Los géneros con `[]` (sin etiqueta) son descartados.
+
+**Paso 2 — Normalización MinMax [0, 1]**
+Las 7 features de audio (`danceability`, `energy`, `valence`, `acousticness`, `speechiness`, `instrumentalness`, `liveness`) se normalizan con `MinMaxScaler`. Los campos `loudness` (rango −20 a −6 dB) y `tempo` (60–200 BPM) también se normalizan a `loudness_n` y `tempo_n`.
+
+**Paso 3 — Clustering KMeans (k = 6)**
+Se aplica `StandardScaler` + `KMeans(k=6)` sobre las 7 features. Cada género recibe una etiqueta de cluster. Los 6 clusters identificados son:
+
+| Cluster | Nombre | Características | Géneros representativos |
+|---|---|---|---|
+| 0 | Dance / Upbeat | energy=0.67, dance=0.66, val=0.68 | basshall, south african house, trap venezolano |
+| 1 | Acoustic / Organic | energy=0.20, dance=0.33, acoustic=0.79 | lo-fi house, shush, white noise |
+| 2 | Ambient / Instrumental | energy=0.21, instrm=0.69, acoustic=0.79 | binaural, brain waves, asmr |
+| 3 | Indie / Alternative | energy=0.46, dance=0.54, acoustic=0.50 | indie triste, modern indie pop, bedroom pop |
+| 4 | Experimental | energy=0.67, dance=0.51, instrm=0.28 | russian dance, canadian house, experimental folk |
+| 5 | Electronic / High Energy | energy=0.80, dance=0.46, acoustic=0.09 | turkish edm, circuit, guaracha |
+
+**Paso 4 — Reducción de dimensionalidad**
+- **PCA 2D**: explica 40.5% (PC1) + 20.7% (PC2) = 61.2% de la varianza. PC1 separa el eje acústico/orgánico vs. electrónico/energético.
+- **t-SNE 2D**: `perplexity=20`, `max_iter=1000`. Resalta clusters locales densos.
+- **UMAP 2D**: `n_neighbors=15`, `min_dist=0.1`. Preserva estructura global + local.
+
+**Paso 5 — Red de artistas**
+Se parsean los géneros de `data_w_genres` con `ast.literal_eval()`. Se construyen edges entre los 80 artistas más populares con al menos 1 género compartido (287 enlaces resultantes).
+
+**Paso 6 — Agregaciones adicionales**
+- Tasa de explicit por año desde `data.csv` → `year_trends.json`
+- Treemap de 10 familias de géneros (Pop, Rock, Hip-Hop, Electronic, Latin, R&B, Country, Classical, Metal, K-Pop)
+
+---
+
+## 3. Arquitectura del sistema
+
+```
+soundscope/
+├── app.py                    # Flask backend — 8 endpoints /api/*
+├── preprocess.py             # Pipeline de datos (ejecutar una vez)
+├── requirements.txt
+├── templates/
+│   └── index.html            # SPA de una sola página
+├── static/
+│   ├── css/
+│   │   └── style.css         # Variables CSS tema dark/light
+│   └── js/
+│       ├── state.js          # Estado global + event bus + tooltip
+│       ├── main.js           # Orquestador: carga, navegación, sidebar
+│       └── charts/
+│           ├── projection.js # PCA / t-SNE / UMAP
+│           ├── parallel.js   # Parallel Coordinates
+│           ├── radviz.js     # RadViz
+│           ├── star.js       # Star Coordinates
+│           ├── joyplot.js    # Ridge / Joy Plot
+│           ├── treemap.js    # Treemap + Correlation matrix
+│           ├── network.js    # Ego Network + Radar
+│           └── extras.js     # Explicit rate + Duration + Artist bar
+└── data/                     # JSON pre-procesados (generados por preprocess.py)
+    ├── genres.json           # 2092 géneros con clusters + PCA/tSNE/UMAP + features_n
+    ├── year.json             # 100 años con explicit_rate + loudness_n
+    ├── artists.json          # Top 200 artistas
+    ├── network.json          # {nodes: 80, edges: 287}
+    ├── year_trends.json      # Explicit rate + duración por año
+    ├── treemap.json          # 10 familias de géneros
+    └── pca_meta.json         # Varianza explicada + loadings
+```
+
+### Flujo de datos
+
+```
+CSV files  →  preprocess.py  →  JSON files  →  Flask /api/*  →  D3.js charts
+                                                        ↕
+                                               State.emit('brush')
+                                                        ↕
+                                           Todos los charts sincronizan
+```
+
+### Sistema de estado global
+
+```javascript
+State.brush(genres[])    // Actualiza brushedGenres → emite evento
+State.on('brush', fn)    // Suscribe cualquier chart al evento
+State.colorBy            // 'cluster' | 'popularity' | feature
+State.projMode           // 'pca' | 'tsne' | 'umap'
+State.activeFeats        // Set de features activas
+```
+
+---
+
+## 4. Tareas analíticas
+
+El sistema responde a tres tareas analíticas principales que estructuran la navegación:
+
+### T1 · Clustering: ¿Cómo se agrupan los géneros por features de audio?
+
+**Hipótesis**: existen grupos naturales de géneros con perfiles sonoros similares que corresponden a macro-familias musicales.
+
+**Visualizaciones que responden esta tarea**: Proyección (PCA/t-SNE/UMAP) + RadViz + Star Coordinates + Treemap
+
+**Acceso**: Tab "Dashboard" → Task pill "T1 · Clustering"
+
+---
+
+### T2 · Evolución: ¿Cómo cambió la música en 100 años?
+
+**Hipótesis**: la música se volvió más energética, más corta y más explícita en el siglo XX. La era más "feliz" (valence alta) fue la de los 70s; la más "triste" es la de los 2010s.
+
+**Visualizaciones que responden esta tarea**: Joyplot temporal + Explicit rate + Duración & Loudness war
+
+**Acceso**: Tab "Temporal" → Task pill "T2 · Evolución"
+
+---
+
+### T3 · Correlación: ¿Qué hace popular a un género?
+
+**Hipótesis**: la energía y la danceability correlacionan positivamente con la popularidad; la acousticness y la instrumentalness correlacionan negativamente.
+
+**Visualizaciones que responden esta tarea**: Parallel Coordinates + Correlation matrix + Scatter de artistas
+
+**Acceso**: Tab "Multidimensional" → Task pill "T3 · Correlación"
+
+---
+
+## 5. Visualizaciones multidimensionales
+
+### 5.1 RadViz
+
+**Descripción**: RadViz proyecta datos de alta dimensión dentro de un círculo unitario. Cada feature ocupa una posición fija en la periferia (el ancla). Cada punto (género) es atraído hacia cada ancla con una fuerza proporcional a su valor normalizado en esa dimensión. La posición final del punto es el promedio ponderado:
 
 $$p = \frac{\sum_{i=1}^{n} d_i \cdot a_i}{\sum_{i=1}^{n} d_i}$$
 
-donde $d_i$ es el valor normalizado de la dimensión $i$ y $a_i$ es la posición del ancla.
+Donde $d_i$ es el valor normalizado de la dimensión $i$ y $a_i$ es la posición del ancla en el círculo.
 
-La división por $\Sigma d_i$ (no por $N$) **garantiza matemáticamente que el punto siempre quede dentro del círculo** — propiedad clave de RadViz (equilibrio de fuerzas).
+**Datos**: `genres.json` — 2 092 géneros con features normalizadas (`feature_n`)
 
-- **Dimensiones:** energy, danceability, popularity, acousticness, liveness, tempo (6)
-- **Color:** popularidad (morado = baja → amarillo = alta)
-- **Tarea:** ¿Cómo se agrupan las canciones según sus características de audio?
+**Interacciones implementadas**:
+- **Drag de anclas**: cada ancla (círculo de color en la periferia) puede arrastrarse libremente para cambiar su posición angular. El plot se recalcula en tiempo real.
+- **Hover**: muestra tooltip con nombre del género + todas las features. El panel lateral derecho muestra barras de progreso por feature.
+- **Click en punto**: brush del género seleccionado → sincroniza todas las vistas.
+- **Color-by**: el dropdown del sidebar cambia el esquema de colores entre cluster, popularidad y features individuales.
 
 ---
 
-### 2. Star Coordinates — Vector Sum
+![Rad Viz](images/RadViz.png)
 
-**Fórmula:**
+---
+
+![Rad Viz2](images/RadViz2.png)
+
+---
+
+### 5.2 Star Coordinates
+
+**Descripción**: Star Coordinates es similar a RadViz pero sin la normalización del denominador. La posición 2D de cada punto se calcula como la suma vectorial de las contribuciones de cada eje:
 
 $$p = \sum_{i=1}^{n} d_i \cdot v_i$$
 
-donde $v_i = (\cos\theta_i,\, \sin\theta_i) \times r_{max}$ es el vector del eje $i$.
+Donde $d_i$ es el valor normalizado y $v_i$ es el vector de dirección del eje $i$ (definido por el usuario mediante drag). Esto permite al usuario controlar la proyección cambiando los ángulos de los ejes.
 
-A diferencia de RadViz, **no hay división normalizadora**: los puntos pueden salir del círculo de referencia. Los tracks con valores extremos se alejan proporcionalmente del centro.
+**Datos**: `genres.json` — mismos 2 092 géneros
 
-- **Dimensiones:** energy, danceability, popularity, acousticness, liveness, tempo (6)
-- **Grid:** 5 círculos concéntricos de referencia (20%, 40%, 60%, 80%, 100%)
-- **Tarea:** ¿Qué features impulsan la popularidad?
+**Interacciones implementadas**:
+- **Drag de extremos de ejes**: el círculo coloreado al final de cada eje puede arrastrarse para cambiar su ángulo. La proyección se actualiza en tiempo real.
+- **Toggle de features**: los checkboxes del panel lateral activan/desactivan features individuales. Al desactivar una feature, su eje desaparece del gráfico y los puntos se recalculan sin esa dimensión.
+- **Hover**: tooltip + actualización del panel de detalle.
+- **Brush y linking**: click en punto → propaga selección a todas las vistas.
 
 ---
 
-### 3. Parallel Coordinates — Brushing & Filtering
+![Star Coord](images/StarCoord.png)
 
-**Normalización por eje:**
+---
+
+![Star Coord2](images/StarCoord2.png)
+
+---
+
+### 5.3 Parallel Coordinates
+
+**Descripción**: Parallel Coordinates representa cada género como una línea poligonal que atraviesa n ejes verticales paralelos, uno por feature. Permite identificar correlaciones positivas (líneas paralelas), correlaciones negativas (líneas que se cruzan) y la distribución de valores en cada dimensión. Los valores se normalizan con:
 
 $$y_i = \frac{x_i - \min(x)}{\max(x) - \min(x)}$$
 
-Cada track es una **línea poligonal** que conecta sus valores en los 10 ejes verticales. El brushing (click-drag) filtra en tiempo real.
+**Datos**: `genres.json` — 2 092 géneros, usando las columnas `feature_n` normalizadas
 
-- **Dimensiones:** las 10 features de audio simultáneamente
-- **Interacción:** brush vertical en cualquier eje → líneas coincidentes se iluminan
-- **Tarea:** ¿Qué correlaciones existen entre las 10 dimensiones?
-
----
-
-### 4. PCA Projection — Dimensionality Reduction
-
-Reducción **10D → 2D** via Principal Component Analysis calculado en el backend (scikit-learn). Pasos:
-
-1. Centrar datos (restar medias)
-2. Calcular matriz de covarianza $C = X^T X / (n-1)$
-3. Eigendecomposición → seleccionar PC1 y PC2 (máxima varianza)
-4. Proyectar: $y = X_{centrado} \cdot W$
-
-- **PC1** (eje X): captura variación en energy + valence + danceability
-- **PC2** (eje Y): captura variación en acousticness + instrumentalness
-- **Tarea:** ¿Qué estructura subyacente revelan los datos en 2D?
+**Interacciones implementadas**:
+- **Brush por eje**: cada eje vertical tiene un brush independiente. Al seleccionar un rango en un eje, solo las líneas que atraviesan ese rango quedan visibles; el resto se atenúa a 3% de opacidad.
+- **Reordenar ejes**: arrastrar la etiqueta de cualquier eje (texto superior) para cambiar su posición. Las líneas se redibujan instantáneamente.
+- **Multi-brush**: se pueden aplicar brushes simultáneamente en múltiples ejes para filtrar con condiciones compuestas (e.g., energy alto Y acousticness bajo).
+- **Color-by**: las líneas se colorean según el dropdown del sidebar.
+- **Linking**: el subconjunto filtrado por brush se sincroniza con RadViz, Star y Proyección.
 
 ---
 
-## 🚀 Instalación y ejecución
-
-### Prerrequisitos
-
-```
-Python 3.8+
-```
-
-### 1. Clonar / descomprimir el proyecto
-
-```bash
-# Asegurarse de que data.csv esté en la raíz junto a app.py
-ls
-# app.py  data.csv  templates/  requirements.txt  README.md
-```
-
-### 2. Crear entorno virtual e instalar dependencias
-
-```bash
-python3 -m venv venv
-source venv/bin/activate        # macOS / Linux
-# venv\Scripts\activate         # Windows
-
-pip install -r requirements.txt
-```
-
-### 3. Ejecutar
-
-```bash
-python app.py
-```
-
-La primera ejecución tarda ~5 s mientras pre-computa todos los tamaños de muestra. Las siguientes peticiones son instantáneas.
-
-### 4. Abrir en el navegador
-
-```
-http://localhost:5000
-```
+![Par Coord](images/ParallelCoord.png)
 
 ---
 
-## 📁 Estructura del proyecto
+![Par Coord2](images/ParallelCoord2.png)
+---
 
-```
-.
-├── app.py                  # Servidor Flask + pipeline de datos
-├── data.csv                # Dataset Spotify (170 653 tracks)
-├── requirements.txt        # Dependencias Python
-├── README.md               # Este archivo
-└── templates/
-    └── index.html          # Dashboard D3.js v7 (integra las 4 visualizaciones hechas en observable)
-```
+### 5.4 PCA — Principal Component Analysis
+
+**Descripción**: PCA es una proyección lineal que maximiza la varianza explicada en cada componente. Se aplica `StandardScaler` antes de PCA para evitar que features con mayor escala dominen la proyección.
+
+$$Z = XW$$
+
+Los dos primeros componentes explican:
+- **PC1: 40.5%** de la varianza → eje acústico/orgánico (−) vs. electrónico/energético (+). Las features con mayor loading positivo en PC1 son `energy` (+0.454) y `danceability` (+0.406); las de mayor loading negativo son `acousticness` (−0.440) e `instrumentalness` (−0.403).
+- **PC2: 20.7%** de la varianza → eje danzable/festivo (−) vs. en vivo/ruidoso (+). `liveness` (+0.516) domina PC2.
+
+**Datos**: `genres.json` — columnas `pca_x`, `pca_y`
+
+**Interacciones implementadas**:
+- **Zoom y pan**: rueda del ratón para zoom, arrastrar para navegar.
+- **Brush de selección rectangular**: traza un rectángulo → brush global.
+- **Hover**: tooltip con todas las features del género.
+- **Color-by**: soporta cluster, popularidad y cualquier feature individual.
+- **Switching PCA/t-SNE/UMAP**: las pills "PCA", "t-SNE", "UMAP" del sidebar redibujan el mismo scatterplot con coordenadas distintas, animando la transición.
 
 ---
 
-## ⚙️ Arquitectura de rendimiento
-
-El problema de lentitud se resolvió con una estrategia de **preload + caché**:
-
-```
-Startup (una sola vez, ~5 s):
-  data.csv → normalización [0,1] → PCA × 6 variantes → JSON bytes en RAM
-
-Cada request:
-  dict lookup → devolver bytes pre-construidos
-  Latencia: < 0.01 ms (sin cómputo por request)
-```
-
-| Variante n | Tracks | Tamaño JSON | Tiempo request |
-|-----------|--------|-------------|----------------|
-| 1,500     | 1,500  | ~578 KB     | < 0.01 ms      |
-| 2,500     | 2,500  | ~964 KB     | < 0.01 ms      |
-| 5,000     | 5,000  | ~1.9 MB     | < 0.01 ms      |
-| 10,000    | 10,000 | ~3.8 MB     | < 0.01 ms      |
-| 20,000    | 20,000 | ~7.5 MB     | < 0.01 ms      |
-| all       | 170,653| ~64 MB      | < 0.01 ms      |
-
-Herramientas de optimización usadas:
-- **`orjson`** — serialización JSON 5-10× más rápida que `json` stdlib
-- **`df.to_dict(orient='records')`** — 10× más rápido que `iterrows`
-- **`MinMaxScaler` sobre todo el CSV una sola vez** — evita re-normalizar por request
+![PCA](images/PCA.png)
 
 ---
 
-## 🎮 Selector de tamaño de muestra
-
-La URL acepta el parámetro `n` para elegir cuántos tracks visualizar:
-
-| URL | Tracks |
-|-----|--------|
-| `http://localhost:5000/` | 2,500 (default) |
-| `http://localhost:5000/?n=1500` | 1,500 |
-| `http://localhost:5000/?n=5000` | 5,000 |
-| `http://localhost:5000/?n=10000` | 10,000 |
-| `http://localhost:5000/?n=20000` | 20,000 |
-| `http://localhost:5000/?n=all` | 170,653 |
-
-El header de la app incluye botones para cambiar entre tamaños sin editar la URL.
+[PCA2](images/PCA2.png)
 
 ---
 
-## 🖱️ Interactividad
+### 5.5 t-SNE
 
-| Visualización | Evento | Resultado |
+**Descripción**: t-Distributed Stochastic Neighbor Embedding es una técnica no lineal que preserva las distancias locales. Parámetros utilizados: `perplexity=20`, `max_iter=1000`. t-SNE produce clusters más compactos y visualmente separados que PCA, a costa de no preservar distancias globales.
+
+**Datos**: `genres.json` — columnas `tsne_x`, `tsne_y`
+
+---
+
+![TSNE](images/TSNE.png)
+
+---
+
+### 5.6 UMAP
+
+**Descripción**: Uniform Manifold Approximation and Projection preserva tanto la estructura local como la global del espacio de alta dimensión. Parámetros: `n_neighbors=15`, `min_dist=0.1`. UMAP es el método más informativo de los tres, combinando la separación de clusters de t-SNE con la coherencia global de PCA.
+
+**Datos**: `genres.json` — columnas `umap_x`, `umap_y`
+
+---
+
+![UMAP](images/UMAP.png)
+
+---
+
+## 6. Visualizaciones de soporte
+
+### 6.1 Joyplot temporal
+
+**Descripción**: Ridge plot (joyplot) con múltiples series temporales superpuestas. Cada serie representa la evolución de una feature de audio a lo largo de los 100 años del dataset (1921–2020). Cada curva tiene su propio dominio en el eje Y, desplazada verticalmente para evitar solapamiento. Las series incluyen: `danceability`, `energy`, `valence`, `acousticness`, `speechiness`, `explicit_rate` y `loudness_n`.
+
+**Datos**: `year.json` (100 filas) + `year_trends.json` para `explicit_rate`
+
+**Interacciones**: línea de hover vertical que muestra el valor exacto de cada serie en el año inspeccionado.
+
+---
+
+![JoyPlot](images/JoyPlot.png)
+
+---
+
+![JoyPlot2](images/JoyPlot2.png)
+
+---
+
+### 6.2 Treemap de géneros
+
+**Descripción**: Treemap jerárquico que muestra la distribución de artistas por familia de género. El área de cada celda es proporcional al número de artistas (conteo de tags). El color distingue las 10 familias (Pop, Rock, Hip-Hop, Electronic, Latin, R&B, Country, Classical, Metal, K-Pop).
+
+**Datos**: `treemap.json` (10 familias, conteos derivados de `data_w_genres.csv`)
+
+**Interacciones**: click en celda → brush global que filtra todos los géneros de esa familia en las demás vistas.
+
+---
+
+![TreeMap](images/genres.png)
+
+---
+
+### 6.3 Matriz de correlación
+
+**Descripción**: Heatmap 7×7 que muestra el coeficiente de correlación de Pearson entre todos los pares de features de audio. La escala de colores diverge en rojo (correlación negativa) → amarillo (sin correlación) → verde (correlación positiva).
+
+**Datos**: calculada en el cliente desde `genres.json`
+
+**Correlaciones más destacadas encontradas**:
+- `energy` ↔ `acousticness`: r = −0.82 (la más fuerte del dataset)
+- `energy` ↔ `instrumentalness`: r = −0.45
+- `danceability` ↔ `valence`: r = +0.38
+- `energy` ↔ `popularity`: r = +0.34
+- `acousticness` ↔ `popularity`: r = −0.46
+
+---
+
+![Corr](images/FeatureCorrelation.png)
+
+---
+
+### 6.4 Explicit rate a lo largo del tiempo
+
+**Descripción**: Área + línea mostrando el porcentaje de tracks con contenido explícito por año entre 2000 y 2020, calculado directamente desde `data.csv` (170 653 tracks individuales).
+
+**Hallazgo clave**: el contenido explícito creció de ~10% en 2000 al ~49.5% en 2020 — un crecimiento 5× en 20 años, coincidiendo con el auge del trap y el rap mainstream.
+
+---
+
+
+![EXP](images/Explicit.png)
+
+> *El punto de 2020 debe tener su etiqueta visible (~49.5%). Aceleración notable a partir de 2015–2016.*
+
+---
+
+### 6.5 Duración y Loudness War
+
+**Descripción**: Gráfico dual-axis que superpone dos tendencias históricas (1960–2020): la duración promedio de las canciones (eje izquierdo, azul) y la intensidad sonora promedio en dB (eje derecho, amarillo).
+
+**Hallazgos**:
+- **Duración**: pico en 1976 (4:28 min) → mínimo histórico en 2020 (3:13 min). El streaming incentiva canciones más cortas.
+- **Loudness war**: de −17 dB en 1921 a −6.6 dB en 2020. La masterización comprimida hace que la música moderna sea ~10 dB más fuerte que la de los años 20.
+
+---
+
+
+![Duracion](images/SongDuration.png)
+
+---
+
+### 6.6 Red de artistas — Ego Network
+
+**Descripción**: Grafo force-directed donde cada nodo es un artista y cada enlace conecta dos artistas que comparten al menos un género musical. El grosor del enlace es proporcional al número de géneros compartidos. El tamaño de los nodos es proporcional a su popularidad. Los colores distinguen el género primario del artista.
+
+**Datos**: `network.json` — 80 nodos (artistas top por popularidad con géneros asignados), 287 enlaces
+
+**Interacciones implementadas**:
+- **Drag de nodos**: la simulación de fuerzas permite reposicionar nodos manualmente.
+- **Zoom y pan**: navegación libre del grafo.
+- **Hover sobre nodo**: resalta el nodo y sus vecinos directos; atenúa el resto. Las etiquetas de los nodos conectados se hacen visibles.
+- **Click en nodo**: dibuja el radar de features del artista seleccionado en el panel adyacente. Actualiza el título del panel.
+- **Búsqueda de artista**: el campo de búsqueda del sidebar filtra por nombre y navega a la vista de artistas.
+
+---
+
+![EGO](images/EgoNetwork.png)
+
+---
+
+### 6.7 Radar de artista
+
+**Descripción**: Polígono radar (spider chart) que muestra el perfil de features de audio de un artista en 5 dimensiones: `danceability`, `energy`, `valence`, `acousticness`, `speechiness`. Los valores utilizados son los valores normalizados del artista en `artists.json`.
+
+**Activación**: click en cualquier nodo de la red, o click en cualquier barra del bar chart de artistas, o búsqueda desde el sidebar.
+
+Seleccionamos al artista **Piso 21**.
+
+---
+
+![PISO 21](images/Piso21.png)
+
+Resalta las características más pegadas de la época (energy and danceability).
+
+---
+
+## 7. Sistema de interacción coordinada
+
+Todas las vistas del sistema están coordinadas a través de un **bus de eventos global** implementado en `state.js`.
+
+### Arquitectura del event bus
+
+```javascript
+// Emitir brush desde cualquier chart
+State.brush(['genre1', 'genre2', 'genre3'])
+
+// Suscribirse al brush desde cualquier chart
+State.on('brush', (genres) => {
+    // Atenuar puntos no seleccionados
+    svg.selectAll('.proj-point')
+       .classed('dimmed', d => !State.brushedGenres.has(d.genres))
+})
+```
+
+### Flujo de una interacción típica
+
+```
+Usuario dibuja brush en PCA
+        ↓
+Projection.js emite State.brush([géneros seleccionados])
+        ↓
+State actualiza brushedGenres + muestra contador en sidebar
+        ↓
+Event bus notifica a:
+  ├── Parallel.js     → atenúa líneas no seleccionadas
+  ├── RadViz.js       → atenúa puntos no seleccionados
+  ├── Star.js         → atenúa puntos no seleccionados
+  └── (Treemap resalta familia si coincide)
+```
+
+### Tipos de interacción implementados
+
+| Evento | Origen | Efecto en otras vistas |
 |---|---|---|
-| RadViz | `mouseenter` | Punto crece (r: 3.5→7), borde amarillo, tooltip |
-| RadViz | `mousemove` | Tooltip sigue el cursor |
-| RadViz | `mouseleave` | Punto vuelve al tamaño original |
-| Star Coords | `mouseenter` | Igual que RadViz, muestra 6 features |
-| Star Coords | `mouseleave` | Restaura punto |
-| Parallel Coords | `brush` (drag) | Líneas coincidentes se iluminan (opacity 0.85), resto se desvanece (0.12) |
-| Parallel Coords | `brushend` (release) | Resetea todas las líneas |
-| PCA | `mouseenter` | Punto crece, muestra PC1, PC2, popularidad, año |
-| PCA | `mouseleave` | Restaura punto |
+| Brush rectangular | PCA, scatter | Filtra géneros en todas las vistas |
+| Brush por eje | Parallel Coordinates | Propaga subconjunto filtrado |
+| Click en punto | RadViz, Star, PCA | Selecciona género único |
+| Click en celda | Treemap | Filtra por familia de géneros |
+| Hover en nodo | Ego network | Resalta artista + vecinos |
+| Click en bar | Artist bar | Dibuja radar + foca en red |
+| Sidebar family | Lista de familias | Filtra todos los charts por familia |
+| Clear brush | Botón sidebar | Restablece todas las vistas |
 
 ---
 
-## 📐 Features del dataset
+![OV](images/Overview-hiphop-pca.png)
 
-| Feature | Rango original | Normalizado | Significado |
-|---------|---------------|-------------|-------------|
-| `valence` | [0, 1] | [0, 1] | Positividad musical |
-| `energy` | [0, 1] | [0, 1] | Intensidad |
-| `danceability` | [0, 1] | [0, 1] | Aptitud para bailar |
-| `acousticness` | [0, 1] | [0, 1] | Presencia de instrumentos acústicos |
-| `instrumentalness` | [0, 1] | [0, 1] | Ausencia de voz |
-| `liveness` | [0, 1] | [0, 1] | Indicador de grabación en vivo |
-| `loudness` | [−60, 3.85 dB] | [0, 1] | Nivel sonoro general |
-| `popularity` | [0, 100] | [0, 1] | Popularidad en streaming |
-| `tempo` | [0, 243.5 BPM] | [0, 1] | Velocidad |
-| `speechiness` | [0, 1] | [0, 1] | Presencia de palabras habladas |
+![OV](images/Overview-rock-pca.png)
 
-`loudness`, `tempo` y `popularity` se normalizan con `MinMaxScaler` sobre el dataset completo antes de muestrear.
+![OV](images/Overview2-rock.png)
 
 ---
 
-## 🔬 Diferencia conceptual clave entre RadViz y Star Coordinates
+## 8. Insights descubiertos
 
-| | RadViz | Star Coordinates |
-|--|--------|-----------------|
-| **Fórmula** | $\Sigma(d_i \cdot a_i) / \Sigma d_i$ | $\Sigma(d_i \cdot v_i)$ |
-| **¿Divide?** | Sí, por $\Sigma d_i$ | No |
-| **Puntos salen del círculo** | Nunca (garantía matemática) | Sí, si valores son altos |
-| **Metáfora** | Equilibrio de fuerzas | Suma vectorial libre |
-| **Propósito** | Clustering | Identificar drivers extremos |
+Los siguientes hallazgos emergen de la exploración interactiva del dataset:
 
----
+### 8.1 La música se está poniendo más triste
 
-## 📊 Insights del dataset
+La `valence` (medida de positividad emocional) alcanzó su pico en los años 70 (≈0.59) y ha caído consistentemente hasta mínimos históricos en los 2010s (≈0.46). La "era más triste" de la música popular coincide con el auge del emo rap, el trap y el lo-fi.
 
-**RadViz:** Las canciones se separan claramente en dos regiones — tracks de alta energía/danceability hacia un lado y tracks acústicos/instrumentales hacia el opuesto. La popularidad (color) está distribuida en ambos grupos.
+### 8.2 El eje acústico/electrónico domina la varianza
 
-**Star Coordinates:** Los tracks populares (amarillos) tienden a alejarse del centro en la dirección de los ejes de danceability y energy. Los tracks muy acústicos forman una nube visible en la dirección opuesta.
+El PC1 del PCA explica el 40.5% de la varianza total y separa perfectamente géneros orgánicos/acústicos (classical piano, acoustic blues, folk) de géneros electrónicos/energéticos (techno, dnb, circuit). Esta es la dicotomía estructural más profunda de la música.
 
-**Parallel Coordinates:** Energy y loudness tienen líneas casi paralelas (correlación positiva fuerte). Acousticness y danceability se cruzan con frecuencia (correlación negativa). Tempo varía de forma independiente.
+### 8.3 La energía vende
 
-**PCA:** El eje PC1 separa tracks energéticos/bailables (derecha) de acústicos (izquierda). PC2 separa los instrumentales (arriba) de los vocales (abajo). Los clusters visibles corresponden aproximadamente a géneros musicales.
+La correlación entre `energy` y `popularity` es r = +0.34, mientras que `acousticness` vs `popularity` es r = −0.46. Los géneros más populares tienden a ser energéticos, no acústicos.
 
----
+### 8.4 Géneros geográficos forman clusters locales en t-SNE/UMAP
 
-## 🛠 Stack tecnológico
+Géneros como "trap venezolano", "argentine hip hop", "pagode baiano", "korean mask singer" y "turkish edm" aparecen agrupados con sus equivalentes geográficos cercanos en t-SNE y UMAP, sugiriendo que la geografía influye en el perfil sonoro de los géneros (sudamérica).
 
-| Componente | Tecnología |
-|---|---|
-| Backend | Flask 2.3+ (Python) |
-| Serialización JSON | orjson 3.9+ |
-| Procesamiento de datos | pandas 1.5+, numpy 1.23+ |
-| PCA | scikit-learn 1.2+ |
-| Normalización | `MinMaxScaler` (scikit-learn) |
-| Visualización | D3.js v7 |
-| Estilos | CSS3 (grid, gradientes, backdrop-filter) |
+### 8.5 La Loudness War es estadísticamente verificable
+
+La intensidad sonora promedio aumentó de −17 dB (1921) a −6.6 dB (2020), un incremento de más de 10 dB en un siglo. Esto refleja la práctica de masterización dinámica comprimida para que las canciones "suenen más fuerte" en radio y streaming.
+
+### 8.6 El contenido explícito creció 5× en 20 años
+
+De 10% de tracks explícitas en el año 2000 a ~50% en 2020. La aceleración es más pronunciada a partir de 2015, cuando el trap y el rap urbano se convirtieron en los géneros dominantes globalmente.
+
+### 8.7 Las canciones se están acortando por el streaming
+
+La duración promedio alcanzó su pico en 1976 (4:28 min) y ha caído hasta 3:13 min en 2020. Los algoritmos de las plataformas de streaming favorecen canciones que retienen oyentes desde los primeros segundos.
 
 ---
 
-## 🐛 Problemas comunes
+## 9. Stack técnico
 
-**Puerto 5000 ocupado:**
+| Componente | Tecnología | Versión |
+|---|---|---|
+| Backend | Python / Flask | ≥ 2.3 |
+| Visualizaciones | D3.js | v7 |
+| Estilos | CSS Variables (dark/light) | — |
+| JavaScript | Vanilla ES6+ | — |
+| Preprocesamiento | pandas, scikit-learn, umap-learn | — |
+| Reducción dimensionalidad | PCA, t-SNE, UMAP | sklearn + umap-learn |
+| Clustering | KMeans | sklearn |
+| Normalización | MinMaxScaler, StandardScaler | sklearn |
+
+---
+
+## 10. Instrucciones de ejecución
+
+### Requisitos
+
 ```bash
-python app.py  # cambia el puerto en la última línea: port=5001
+pip install flask pandas numpy scikit-learn umap-learn
 ```
 
-**`orjson` no instalado:**
+### Ejecución
+
 ```bash
-pip install orjson
+# 1. Ejecutar el preprocesamiento (genera los JSON en /data)
+python preprocess.py
+
+# 2. Iniciar la aplicación Flask
+python app.py
+
+# 3. Abrir en el navegador
+# http://localhost:5050
 ```
 
-**`data.csv` no encontrado:**
+### Estructura de navegación
+
 ```
-Asegúrate de que data.csv esté en el mismo directorio que app.py.
-El archivo se busca en: os.path.join(os.path.dirname(__file__), 'data.csv')
+Dashboard        → Proyección + Treemap + Parallel Coords + Correlación
+Multidimensional → RadViz + Star Coordinates
+Temporal         → Joyplot + Explicit rate + Duración/Loudness
+Artists          → Ego network + Bar chart + Radar de artista
 ```
 
-**La app tarda mucho al arrancar:**
-```
-Normal — ~5 s la primera vez para pre-computar los 6 tamaños de muestra.
-Después de ese startup, todas las peticiones son < 1 ms.
-```
+### Controles del sidebar
+
+- **Toggle dark/light**: botón de sol/luna en la cabecera del sidebar
+- **Task pills**: navegan directamente a la vista correspondiente a cada tarea analítica
+- **Features**: activan/desactivan dimensiones en RadViz y Star Coordinates
+- **Color by**: cambia el esquema de colores en todas las proyecciones
+- **Projection**: cambia entre PCA, t-SNE y UMAP
+- **Artist search**: autocomplete para buscar artistas y dibujar su perfil
+- **Genre families**: filtra todos los charts por macro-familia de género
+- **Clear selection**: elimina el brush activo y restaura todas las vistas
 
 ---
-
-## 📬 Criterios de evaluación (20 pts)
-
-| Criterio | Pts | Estado |
-|----------|-----|--------|
-| Claridad (labels, diseño) | 4 | ✅ |
-| Insight analítico (patrones revelados) | 4 | ✅ |
-| Justificación del diseño | 3 | ✅ |
-| Precisión técnica (fórmulas correctas) | 3 | ✅ |
-| Tareas analíticas (3 tasks) | 3 | ✅ |
-| Interacción (hover, brush, click) | 3 | ✅ |
-
----
-
-## 📚 Referencias
-
-- D3.js v7 Documentation — https://d3js.org/
-- Hoffman et al., *DNA Visual and Analytic Data Mining* (RadViz original)
-- Kandogan, E. *Star Coordinates: A Multi-dimensional Visualization Technique* (2000)
-- Inselberg, A. *Parallel Coordinates: Visual Multidimensional Geometry* (2009)
-- scikit-learn PCA — https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html
-- Dataset: Kaggle Spotify Dataset 1921–2020 — https://www.kaggle.com/datasets/yamaerenay/spotify-dataset-19212020-600k-tracks

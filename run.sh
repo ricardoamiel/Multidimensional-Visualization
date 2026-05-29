@@ -14,6 +14,11 @@ echo ""
 echo "📦 Installing dependencies..."
 pip install -r requirements.txt
 
+# Run data processing
+echo ""
+echo "🔄 Processing data..."
+python3 process_data.py
+
 # Run the app
 echo ""
 echo "🚀 Starting Flask server..."

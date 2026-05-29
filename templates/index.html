@@ -1,657 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spotify Multidimensional Visualization — By: Ricardo Amiel</title>
-  <script src="https://d3js.org/d3.v6.min.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      padding: 20px;
-    }
-
-    .container { max-width: 1700px; margin: 0 auto; }
-
-    /* ── Header ── */
-    .header {
-      text-align: center;
-      color: #fff;
-      background: rgba(0,0,0,.3);
-      padding: 20px 30px;
-      border-radius: 10px;
-      backdrop-filter: blur(10px);
-      margin-bottom: 25px;
-    }
-    .header h1 { font-size: 2.2em; text-shadow: 2px 2px 4px rgba(0,0,0,.5); }
-    .header p  { font-size: 1em; color: rgba(255,255,255,.85); margin-top: 6px; }
-
-    /* ── N selector ── */
-    .n-selector {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 14px;
-      flex-wrap: wrap;
-    }
-    .n-selector span {
-      font-size: .9em;
-      color: rgba(255,255,255,.8);
-    }
-    .n-btn {
-      background: rgba(255,255,255,.15);
-      color: #fff;
-      border: 1.5px solid rgba(255,255,255,.4);
-      border-radius: 20px;
-      padding: 5px 16px;
-      font-size: .85em;
-      cursor: pointer;
-      transition: background .2s, border-color .2s;
-      text-decoration: none;
-    }
-    .n-btn:hover {
-      background: rgba(255,255,255,.3);
-      border-color: #fff;
-    }
-    .n-btn.active {
-      background: #FFC107;
-      border-color: #FFC107;
-      color: #333;
-      font-weight: 700;
-    }
-
-    /* ── Loading overlay ── */
-    #loading {
-      position: fixed; inset: 0;
-      background: rgba(102,126,234,.92);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      color: #fff; z-index: 9999;
-      font-size: 1.4em; gap: 18px;
-    }
-    .spinner {
-      width: 55px; height: 55px;
-      border: 6px solid rgba(255,255,255,.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .9s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Grid ── */
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 22px;
-      margin-bottom: 22px;
-    }
-    @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
-
-    /* ── Cards ── */
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 10px 40px rgba(0,0,0,.18);
-      transition: transform .25s, box-shadow .25s;
-    }
-    .card:hover { transform: translateY(-4px); box-shadow: 0 16px 50px rgba(0,0,0,.25); }
-    .card-title { font-size: 1.35em; color: #667eea; font-weight: 700; margin-bottom: 8px; }
-    .card-desc  { font-size: .9em; color: #666; line-height: 1.55; margin-bottom: 12px; }
-
-    /* ── SVG containers ── */
-    .vis-wrap {
-      position: relative;
-      width: 100%;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      background: #f9f9f9;
-      overflow: hidden;
-    }
-    .vis-wrap svg { display: block; width: 100%; }
-
-    /* ── Tooltip ── */
-    .tooltip {
-      position: fixed;
-      padding: 8px 12px;
-      background: rgba(0,0,0,.88);
-      color: #fff;
-      border-radius: 5px;
-      font-size: 12px;
-      pointer-events: none;
-      z-index: 8000;
-      display: none;
-      max-width: 280px;
-      line-height: 1.5;
-      font-family: 'Segoe UI', sans-serif;
-    }
-
-    /* ── Info & hint bars ── */
-    .info-bar {
-      background: rgba(102,126,234,.1);
-      border-left: 4px solid #667eea;
-      padding: 10px 14px;
-      border-radius: 4px;
-      font-size: .85em;
-      color: #555;
-      margin-top: 10px;
-    }
-    .hint-bar {
-      background: #fff8e1;
-      border: 1px solid #ffc107;
-      padding: 7px 12px;
-      border-radius: 4px;
-      font-size: .82em;
-      color: #795700;
-      margin-top: 8px;
-    }
-
-    /* ── Insights section ── */
-    .insights {
-      background: #fff;
-      border-radius: 12px;
-      padding: 22px 28px;
-      box-shadow: 0 10px 40px rgba(0,0,0,.18);
-      margin-top: 6px;
-    }
-    .insights h2 { color: #667eea; margin-bottom: 14px; }
-    .insights h3 { color: #667eea; margin: 14px 0 6px; }
-    .insights p  { color: #555; line-height: 1.65; font-size: .93em; }
-
-    /* D3 brush style */
-    .brush .selection { fill: rgba(102,126,234,.25); stroke: #667eea; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoundScope · Spotify Multidimensional Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Circular+Std:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body data-theme="dark">
 
-<!-- Loading -->
-<div id="loading">
-  <div class="spinner"></div>
-  <span id="loading-msg">Cargando {{ actual_n | int }} tracks de Spotify…</span>
-</div>
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path d="M7 9.5c3-1 7-1 10 1M6.5 12.5c3.5-1.2 8-1 11 1.5M8 15.5c2.5-.8 6-.7 9 1" stroke="white" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+      <span class="logo-text">SoundScope</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
 
-<!-- Tooltip global -->
-<div id="tooltip" class="tooltip"></div>
-
-<div class="container">
-  <div class="header">
-    <h1>🎵 Spotify Multidimensional Data Visualization</h1>
-    <p id="track-count"><strong>{{ actual_n | int }}</strong> tracks analizados &nbsp;·&nbsp;</p>
-
-    <!-- N selector -->
-    <div class="n-selector">
-      <span>Tracks:</span>
-      {% for opt in valid_n %}
-        {% set opt_str = opt | string %}
-        {% set cur_str = n | string %}
-        <a class="n-btn {% if opt_str == cur_str %}active{% endif %}"
-           href="/?n={{ opt_str }}">
-          {{ '170 654 (all)' if opt_str == 'all' else '{:,}'.format(opt) }}
-        </a>
-      {% endfor %}
+  <!-- Tasks -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Analytical Tasks</div>
+    <div class="task-pills">
+      <button class="task-pill active" data-task="clustering">T1 · Clustering</button>
+      <button class="task-pill" data-task="evolution">T2 · Evolution</button>
+      <button class="task-pill" data-task="correlation">T3 · Correlation</button>
     </div>
   </div>
 
-  <div class="grid">
-
-    <!-- 1. RadViz -->
-    <div class="card">
-      <div class="card-title">1️⃣ RadViz · Dimensional Anchoring</div>
-      <div class="card-desc">
-        Cada dimensión es un ancla en la periferia del círculo.
-        La posición del punto es <em>p = Σ(dᵢ·aᵢ) / Σ(dᵢ)</em>,
-        garantizando que siempre quede dentro del círculo.
-      </div>
-      <div class="vis-wrap" id="radviz-wrap"></div>
-      <div class="info-bar">
-        <strong>Tarea:</strong> ¿Cómo se agrupan las canciones por sus features de audio?
-      </div>
-      <div class="hint-bar">💡 Hover sobre los puntos para ver detalles del track.</div>
-    </div>
-
-    <!-- 2. Star Coordinates -->
-    <div class="card">
-      <div class="card-title">2️⃣ Star Coordinates · Vector Sum</div>
-      <div class="card-desc">
-        6 ejes radiales desde el centro. La posición es
-        <em>p = Σ(dᵢ·vᵢ)</em> — suma vectorial libre,
-        sin normalización: los puntos pueden salir del círculo.
-      </div>
-      <div class="vis-wrap" id="star-wrap"></div>
-      <div class="info-bar">
-        <strong>Tarea:</strong> ¿Qué features impulsan la popularidad?
-      </div>
-      <div class="hint-bar">💡 Hover sobre los puntos para ver las 6 dimensiones.</div>
-    </div>
-
-    <!-- 3. Parallel Coordinates -->
-    <div class="card">
-      <div class="card-title">3️⃣ Parallel Coordinates · Brushing</div>
-      <div class="card-desc">
-        10 ejes verticales paralelos. Cada track es una línea poligonal.
-        Arrastra en cualquier eje para filtrar y descubrir correlaciones.
-      </div>
-      <div class="vis-wrap" id="parallel-wrap"></div>
-      <div class="info-bar">
-        <strong>Tarea:</strong> ¿Qué correlaciones existen entre las 10 dimensiones?
-      </div>
-      <div class="hint-bar">💡 Click-drag sobre cualquier eje para hacer brush y filtrar.</div>
-    </div>
-
-    <!-- 4. PCA -->
-    <div class="card">
-      <div class="card-title">4️⃣ PCA Projection · 10D → 2D</div>
-      <div class="card-desc">
-        Principal Component Analysis: 10 features comprimidas a 2 componentes
-        preservando la varianza máxima. Color = popularidad.
-      </div>
-      <div class="vis-wrap" id="pca-wrap"></div>
-      <div class="info-bar">
-        <strong>Tarea:</strong> ¿Qué estructura subyacente revelan los datos en 2D?
-      </div>
-      <div class="hint-bar">💡 Hover sobre puntos para ver PC1, PC2 y metadatos del track.</div>
-    </div>
-
-  </div><!-- /grid -->
-
-  <!-- Insights -->
-  <div class="insights">
-    <h2>📊 Insights del Dataset</h2>
-    <h3>Task 1 — RadViz</h3>
-    <p>Tracks con alta energía y danceability se agrupan hacia esos anclajes.
-       Las canciones acústicas se alejan de energy y se acercan a acousticness.
-       La fórmula <em>Σdi·ai / Σdi</em> garantiza que el punto de equilibrio quede siempre dentro del círculo.</p>
-    <h3>Task 2 — Star Coordinates</h3>
-    <p>Sin normalización (<em>Σdi·vi</em>), los tracks con valores extremos se alejan visiblemente del centro.
-       Canciones populares tienden a acumularse hacia el eje de danceability y energy.</p>
-    <h3>Task 3 — Parallel Coordinates</h3>
-    <p>Energy y loudness muestran líneas casi paralelas (correlación positiva).
-       Acousticness y danceability se cruzan con frecuencia (correlación negativa).
-       Usa el brush para verificar estos patrones seleccionando rangos específicos.</p>
-    <h3>Task 4 — PCA</h3>
-    <p>PC1 captura principalmente la variación en energy, valence y danceability (eje horizontal).
-       PC2 captura acousticness e instrumentalness (eje vertical).
-       Los clusters visibles corresponden a géneros y estilos musicales.</p>
+  <!-- Feature selector -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Features</div>
+    <div class="feature-list" id="featureList"></div>
   </div>
-</div><!-- /container -->
 
-<script>
-// ════════════════════════════════════════════════════════════════════════════
-// GLOBALS
-// ════════════════════════════════════════════════════════════════════════════
-let DATA = [];
-const TOOLTIP = document.getElementById('tooltip');
-const popularityColor = d3.scaleLinear().domain([0,1]).range(['#667eea','#FFC107']);
+  <!-- Color-by -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Color by</div>
+    <select class="sb-select" id="colorBy">
+      <option value="cluster">Cluster</option>
+      <option value="popularity">Popularity</option>
+      <option value="energy">Energy</option>
+      <option value="danceability">Danceability</option>
+      <option value="valence">Valence</option>
+      <option value="acousticness">Acousticness</option>
+    </select>
+  </div>
 
-// Pass n from Flask template to JS
-const CURRENT_N = "{{ n }}";
+  <!-- Projection selector -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Projection method</div>
+    <div class="proj-pills">
+      <button class="proj-pill active" data-proj="pca">PCA</button>
+      <button class="proj-pill" data-proj="tsne">t-SNE</button>
+      <button class="proj-pill" data-proj="umap">UMAP</button>
+    </div>
+  </div>
 
-function showTip(html, event) {
-  TOOLTIP.innerHTML = html;
-  TOOLTIP.style.display = 'block';
-  moveTip(event);
-}
-function moveTip(event) {
-  TOOLTIP.style.left = (event.clientX + 14) + 'px';
-  TOOLTIP.style.top  = (event.clientY + 14) + 'px';
-}
-function hideTip() { TOOLTIP.style.display = 'none'; }
+  <!-- Artist search -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Artist search</div>
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="search-input" id="artistSearch" placeholder="Search artist…">
+    </div>
+    <div class="suggestions" id="suggestions"></div>
+  </div>
 
-// ════════════════════════════════════════════════════════════════════════════
-// DATA LOAD  — uses the same ?n= param as the page
-// ════════════════════════════════════════════════════════════════════════════
-d3.json('/api/data?n=' + CURRENT_N).then(resp => {
-  DATA = resp.data;
-  const n = resp.n;
+  <!-- Brush status -->
+  <div class="sidebar-section" id="brushStatus" style="display:none">
+    <div class="sidebar-label">Selection</div>
+    <div class="brush-info">
+      <span id="brushCount">0 genres</span>
+      <button class="clear-btn" id="clearBrush">Clear ✕</button>
+    </div>
+  </div>
 
-  // Update UI
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('track-count').innerHTML =
-    `<strong>${n.toLocaleString()}</strong> tracks analizados &nbsp;·&nbsp;`;
+  <!-- Genre family filter -->
+  <div class="sidebar-section">
+    <div class="sidebar-label">Genre families</div>
+    <div class="family-list" id="familyList"></div>
+  </div>
+</aside>
 
-  initRadViz();
-  initStarCoords();
-  initParallelCoords();
-  initPCA();
+<!-- ═══ MAIN ═══ -->
+<main class="main" id="main">
 
-  console.log('✅', n, 'tracks cargados');
-}).catch(err => {
-  document.getElementById('loading').innerHTML =
-    '<span style="color:#ffb3b3">❌ Error cargando datos: ' + err + '</span>';
-});
+  <!-- NAV TABS -->
+  <nav class="tab-bar">
+    <button class="tab active" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="multidim">Multidimensional</button>
+    <button class="tab" data-view="temporal">Temporal</button>
+    <button class="tab" data-view="artists">Artists</button>
+  </nav>
 
+  <!-- ── VIEW: DASHBOARD ── -->
+  <div class="view active" id="view-dashboard">
+    <div class="view-grid dashboard-grid">
+      <!-- Projection (big) -->
+      <div class="panel panel-projection" id="panelProjection">
+        <div class="panel-header">
+          <span class="panel-title" id="projTitle">PCA · Genre Space</span>
+          <span class="panel-hint">Drag to brush · Scroll to zoom</span>
+        </div>
+        <div class="chart-wrap" id="projChart"></div>
+        <div class="proj-legend" id="projLegend"></div>
+      </div>
+      <!-- Treemap -->
+      <div class="panel panel-treemap" id="panelTreemap">
+        <div class="panel-header">
+          <span class="panel-title">Genre families</span>
+          <span class="panel-hint">Click to filter</span>
+        </div>
+        <div class="chart-wrap" id="treemapChart"></div>
+      </div>
+      <!-- Parallel Coords -->
+      <div class="panel panel-parallel" id="panelParallel">
+        <div class="panel-header">
+          <span class="panel-title">Parallel Coordinates</span>
+          <span class="panel-hint">Brush axis · Drag to reorder</span>
+        </div>
+        <div class="chart-wrap" id="parallelChart"></div>
+      </div>
+      <!-- Correlation matrix -->
+      <div class="panel panel-corr" id="panelCorr">
+        <div class="panel-header">
+          <span class="panel-title">Feature correlation</span>
+          <span class="panel-hint">Hover cells</span>
+        </div>
+        <div class="chart-wrap" id="corrChart"></div>
+      </div>
+    </div>
+  </div>
 
-// ════════════════════════════════════════════════════════════════════════════
-// 1. RADVIZ  —  p = Σ(dᵢ·aᵢ) / Σ(dᵢ)
-// ════════════════════════════════════════════════════════════════════════════
-function initRadViz() {
-  const wrap = document.getElementById('radviz-wrap');
-  const W = wrap.clientWidth, H = 520;
-  const cx = W/2, cy = H/2;
-  const radius = Math.min(W, H)/2 - 55;
+  <!-- ── VIEW: MULTIDIM ── -->
+  <div class="view" id="view-multidim">
+    <div class="view-grid multidim-grid">
+      <div class="panel" id="panelRadviz">
+        <div class="panel-header">
+          <span class="panel-title">RadViz · Dimensional anchoring</span>
+          <span class="panel-hint">Drag anchors · Hover points</span>
+        </div>
+        <div class="panel-body-split">
+          <div class="chart-wrap" id="radvizChart"></div>
+          <div class="side-info">
+            <div class="formula-card">
+              <div class="formula-title">Formula</div>
+              <div class="formula-eq">p = Σ(dᵢ·aᵢ) / Σdᵢ</div>
+              <div class="formula-sub">aᵢ = anchor position · dᵢ = normalized value</div>
+            </div>
+            <div class="hover-card" id="radvizInfo"><span class="hover-hint">Hover a genre</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" id="panelStar">
+        <div class="panel-header">
+          <span class="panel-title">Star Coordinates · Axis weighting</span>
+          <span class="panel-hint">Drag axis ends · Toggle features</span>
+        </div>
+        <div class="panel-body-split">
+          <div class="chart-wrap" id="starChart"></div>
+          <div class="side-info">
+            <div class="formula-card">
+              <div class="formula-title">Formula</div>
+              <div class="formula-eq">p = Σ(dᵢ · vᵢ)</div>
+              <div class="formula-sub">vᵢ = axis direction vector</div>
+            </div>
+            <div class="feat-toggles" id="starToggles"></div>
+            <div class="hover-card" id="starInfo"><span class="hover-hint">Hover a genre</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  const svg = d3.select(wrap).append('svg')
-    .attr('width', W).attr('height', H);
+  <!-- ── VIEW: TEMPORAL ── -->
+  <div class="view" id="view-temporal">
+    <div class="view-grid temporal-grid">
+      <div class="panel panel-joy">
+        <div class="panel-header">
+          <span class="panel-title">Joyplot · 100 years of music features</span>
+          <span class="panel-hint">Hover to inspect year</span>
+        </div>
+        <div class="chart-wrap" id="joyChart"></div>
+      </div>
+      <div class="panel panel-explicit">
+        <div class="panel-header">
+          <span class="panel-title">Explicit content rate over time</span>
+          <span class="panel-hint">data.csv · 2000–2020</span>
+        </div>
+        <div class="chart-wrap" id="explicitChart"></div>
+      </div>
+      <div class="panel panel-duration">
+        <div class="panel-header">
+          <span class="panel-title">Song duration &amp; loudness war</span>
+          <span class="panel-hint">Dual axis · 1921–2020</span>
+        </div>
+        <div class="chart-wrap" id="durationChart"></div>
+      </div>
+    </div>
+  </div>
 
-  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+  <!-- ── VIEW: ARTISTS ── -->
+  <div class="view" id="view-artists">
+    <div class="view-grid artist-grid">
+      <div class="panel panel-network">
+        <div class="panel-header">
+          <span class="panel-title" id="networkTitle">Artist ego network</span>
+          <span class="panel-hint">Drag · Zoom · Click to explore</span>
+        </div>
+        <div class="chart-wrap" id="networkChart"></div>
+      </div>
+      <div class="panel panel-artist-bar">
+        <div class="panel-header">
+          <span class="panel-title">Top artists by popularity</span>
+          <span class="panel-hint">Click to highlight in network</span>
+        </div>
+        <div class="chart-wrap" id="artistBarChart"></div>
+      </div>
+      <div class="panel panel-radar">
+        <div class="panel-header">
+          <span class="panel-title" id="radarTitle">Artist feature profile</span>
+          <span class="panel-hint" id="radarHint">Click artist to draw</span>
+        </div>
+        <div class="chart-wrap" id="radarChart"></div>
+      </div>
+    </div>
+  </div>
 
-  const dims = ['energy', 'danceability', 'popularity', 'acousticness', 'liveness', 'tempo'];
-  const angleSlice = (Math.PI * 2) / dims.length;
+</main>
 
-  const anchors = dims.map((dim, i) => {
-    const angle = angleSlice * i - Math.PI / 2;
-    return { dim, x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
-  });
+<!-- GLOBAL TOOLTIP -->
+<div class="g-tooltip" id="gTooltip"></div>
 
-  g.append('circle').attr('r', radius)
-    .attr('fill','none').attr('stroke','#ddd').attr('stroke-width', 2);
-
-  anchors.forEach(a => {
-    g.append('line')
-      .attr('x1',0).attr('y1',0).attr('x2',a.x).attr('y2',a.y)
-      .attr('stroke','#ccc').attr('stroke-width',1).attr('stroke-dasharray','4,3');
-    g.append('text')
-      .attr('x', a.x*1.18).attr('y', a.y*1.18)
-      .attr('text-anchor','middle').attr('dominant-baseline','middle')
-      .attr('font-size','13px').attr('font-weight','bold').attr('fill','#444')
-      .text(a.dim);
-  });
-
-  // FÓRMULA CORRECTA: / Σdi
-  g.selectAll('.rv-dot')
-    .data(DATA).enter().append('circle')
-    .attr('class','rv-dot')
-    .attr('r', 3.5)
-    .attr('fill', d => popularityColor(d.popularity))
-    .attr('opacity', 0.72)
-    .attr('stroke','#fff').attr('stroke-width', 0.5)
-    .attr('cx', d => {
-      let x = 0;
-      anchors.forEach(a => { x += d[a.dim] * a.x; });
-      const sumD = dims.reduce((s, dim) => s + d[dim], 0);
-      return sumD > 0 ? x / sumD : 0;
-    })
-    .attr('cy', d => {
-      let y = 0;
-      anchors.forEach(a => { y += d[a.dim] * a.y; });
-      const sumD = dims.reduce((s, dim) => s + d[dim], 0);
-      return sumD > 0 ? y / sumD : 0;
-    })
-    .on('mouseenter', function(event, d) {
-      d3.select(this).transition().duration(150).attr('r',7).attr('opacity',1)
-        .attr('stroke','#FFC107').attr('stroke-width',2);
-      showTip(`
-        <strong>${d.name}</strong><br/>
-        <span style="color:#ccc;font-size:11px">${d.artists}</span><br/>
-        <hr style="border:none;border-top:1px solid #555;margin:4px 0">
-        Energy: <b>${(d.energy*100).toFixed(0)}%</b><br/>
-        Danceability: <b>${(d.danceability*100).toFixed(0)}%</b><br/>
-        Popularity: <b>${(d.popularity*100).toFixed(0)}%</b><br/>
-        Acousticness: <b>${(d.acousticness*100).toFixed(0)}%</b><br/>
-        Liveness: <b>${(d.liveness*100).toFixed(0)}%</b><br/>
-        Tempo: <b>${(d.tempo*100).toFixed(0)}%</b>
-      `, event);
-    })
-    .on('mousemove', (event) => moveTip(event))
-    .on('mouseleave', function() {
-      d3.select(this).transition().duration(150).attr('r',3.5).attr('opacity',.72)
-        .attr('stroke','#fff').attr('stroke-width',.5);
-      hideTip();
-    });
-}
-
-
-// ════════════════════════════════════════════════════════════════════════════
-// 2. STAR COORDINATES  —  p = Σ(dᵢ·vᵢ)  sin división
-// ════════════════════════════════════════════════════════════════════════════
-function initStarCoords() {
-  const wrap = document.getElementById('star-wrap');
-  const W = wrap.clientWidth, H = 520;
-  const cx = W/2, cy = H/2;
-  const maxR = Math.min(W,H)/2 - 55;
-
-  const svg = d3.select(wrap).append('svg')
-    .attr('width', W).attr('height', H);
-
-  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
-
-  const dims = ['energy','danceability','popularity','acousticness','liveness','tempo'];
-  const angleSlice = (Math.PI * 2) / dims.length;
-
-  [0.2,0.4,0.6,0.8,1].forEach(r => {
-    g.append('circle').attr('r', maxR*r)
-      .attr('fill','none').attr('stroke','#eee').attr('stroke-width',1);
-  });
-
-  // vi = (cos θ, sin θ) × maxR
-  const axes = dims.map((dim, i) => {
-    const angle = angleSlice * i - Math.PI / 2;
-    return { dim, angle, x: maxR * Math.cos(angle), y: maxR * Math.sin(angle) };
-  });
-
-  axes.forEach(a => {
-    g.append('line')
-      .attr('x1',0).attr('y1',0).attr('x2',a.x).attr('y2',a.y)
-      .attr('stroke','#ddd').attr('stroke-width',2);
-    g.append('text')
-      .attr('x', a.x*1.15).attr('y', a.y*1.15)
-      .attr('text-anchor','middle').attr('dominant-baseline','middle')
-      .attr('font-size','12px').attr('font-weight','bold').attr('fill','#444')
-      .text(a.dim);
-  });
-
-  // FÓRMULA CORRECTA: p = Σ(di·vi), SIN dividir
-  g.selectAll('.sc-dot')
-    .data(DATA).enter().append('circle')
-    .attr('class','sc-dot')
-    .attr('r', 3.5)
-    .attr('fill', d => popularityColor(d.popularity))
-    .attr('opacity', 0.72)
-    .attr('stroke','#fff').attr('stroke-width', 0.5)
-    .attr('cx', d => {
-      let x = 0;
-      axes.forEach(a => { x += d[a.dim] * a.x; });
-      return x;   // SIN dividir
-    })
-    .attr('cy', d => {
-      let y = 0;
-      axes.forEach(a => { y += d[a.dim] * a.y; });
-      return y;
-    })
-    .on('mouseenter', function(event, d) {
-      d3.select(this).transition().duration(150).attr('r',7).attr('opacity',1)
-        .attr('stroke','#FFC107').attr('stroke-width',2);
-      showTip(`
-        <strong>${d.name}</strong><br/>
-        <span style="color:#ccc;font-size:11px">${d.artists}</span><br/>
-        <hr style="border:none;border-top:1px solid #555;margin:4px 0">
-        Popularity: <b>${(d.popularity*100).toFixed(0)}%</b><br/>
-        Energy: <b>${(d.energy*100).toFixed(0)}%</b><br/>
-        Danceability: <b>${(d.danceability*100).toFixed(0)}%</b><br/>
-        Acousticness: <b>${(d.acousticness*100).toFixed(0)}%</b><br/>
-        Liveness: <b>${(d.liveness*100).toFixed(0)}%</b><br/>
-        Tempo: <b>${(d.tempo*100).toFixed(0)}%</b>
-      `, event);
-    })
-    .on('mousemove', (event) => moveTip(event))
-    .on('mouseleave', function() {
-      d3.select(this).transition().duration(150).attr('r',3.5).attr('opacity',.72)
-        .attr('stroke','#fff').attr('stroke-width',.5);
-      hideTip();
-    });
-}
-
-
-// ════════════════════════════════════════════════════════════════════════════
-// 3. PARALLEL COORDINATES
-// ════════════════════════════════════════════════════════════════════════════
-function initParallelCoords() {
-  const wrap = document.getElementById('parallel-wrap');
-  const margin = {top:36, right:20, bottom:20, left:20};
-  const W = wrap.clientWidth - margin.left - margin.right;
-  const H = 500 - margin.top - margin.bottom;
-
-  const svg = d3.select(wrap).append('svg')
-    .attr('width', W + margin.left + margin.right)
-    .attr('height', H + margin.top + margin.bottom);
-
-  const g = svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
-
-  const dims = ['valence','energy','danceability','acousticness',
-                'instrumentalness','liveness','loudness','popularity','tempo','speechiness'];
-
-  const xScale = d3.scalePoint().domain(dims).range([0, W]);
-
-  const yScales = {};
-  dims.forEach(d => {
-    yScales[d] = d3.scaleLinear().domain([0,1]).range([H, 0]);
-  });
-
-  const brushState = new Map();
-
-  // Lines below axes
-  const lines = g.selectAll('.pc-line')
-    .data(DATA).enter().append('path')
-    .attr('class','pc-line')
-    .attr('fill','none')
-    .attr('stroke', d => popularityColor(d.popularity))
-    .attr('stroke-width', 1)
-    .attr('opacity', 0.35)
-    .attr('d', d =>
-      d3.line()(dims.map(dim => [xScale(dim), yScales[dim](d[dim])]))
-    );
-
-  // Axes on top
-  const axisGroups = g.selectAll('.pc-axis')
-    .data(dims).enter().append('g')
-    .attr('class','pc-axis')
-    .attr('transform', d => `translate(${xScale(d)},0)`);
-
-  axisGroups.append('line')
-    .attr('y1', 0).attr('y2', H)
-    .attr('stroke','#999').attr('stroke-width', 2);
-
-  axisGroups.append('text')
-    .attr('text-anchor','middle').attr('y',-12)
-    .attr('font-size','11px').attr('font-weight','bold').attr('fill','#333')
-    .text(d => d);
-
-  function brushed(event, dimension) {
-    if (!event.selection) return;
-    const [y0, y1] = event.selection;
-    brushState.clear();
-    DATA.forEach((d, i) => {
-      const y = yScales[dimension](d[dimension]);
-      if (y >= y0 && y <= y1) brushState.set(i, true);
-    });
-    lines.attr('stroke-width', (_d,i) => brushState.has(i) ? 2 : 1)
-         .attr('opacity',      (_d,i) => brushState.has(i) ? 0.85 : 0.12);
-  }
-
-  function brushEnd(event) {
-    if (!event.selection) {
-      brushState.clear();
-      lines.attr('stroke-width', 1).attr('opacity', 0.35);
-    }
-  }
-
-  axisGroups.append('g').attr('class','brush')
-    .each(function(dimension) {
-      d3.select(this).call(
-        d3.brushY()
-          .extent([[-8,0],[8,H]])
-          .on('brush', function(event) { brushed(event, dimension); })
-          .on('end',   function(event) { brushEnd(event); })
-      );
-    });
-}
-
-
-// ════════════════════════════════════════════════════════════════════════════
-// 4. PCA PROJECTION
-// ════════════════════════════════════════════════════════════════════════════
-function initPCA() {
-  const wrap = document.getElementById('pca-wrap');
-  const margin = {top:40, right:40, bottom:60, left:60};
-  const W = wrap.clientWidth - margin.left - margin.right;
-  const H = 520 - margin.top - margin.bottom;
-
-  const svg = d3.select(wrap).append('svg')
-    .attr('width', W + margin.left + margin.right)
-    .attr('height', H + margin.top + margin.bottom);
-
-  const g = svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
-
-  const xScale = d3.scaleLinear()
-    .domain(d3.extent(DATA, d => d.pca1)).range([0, W]);
-  const yScale = d3.scaleLinear()
-    .domain(d3.extent(DATA, d => d.pca2)).range([H, 0]);
-
-  const defs = svg.append('defs');
-  const grad = defs.append('linearGradient').attr('id','pcabg')
-    .attr('x1','0%').attr('y1','0%').attr('x2','100%').attr('y2','100%');
-  grad.append('stop').attr('offset','0%').attr('stop-color','#f5f7fa');
-  grad.append('stop').attr('offset','100%').attr('stop-color','#c3cfe2');
-
-  g.append('rect').attr('width',W).attr('height',H)
-    .attr('fill','url(#pcabg)').attr('opacity',.55);
-
-  g.append('g').attr('transform',`translate(0,${H})`)
-    .call(d3.axisBottom(xScale).ticks(6))
-    .append('text')
-    .attr('x',W/2).attr('y',42)
-    .attr('fill','#333').attr('font-size','12px').attr('font-weight','bold')
-    .attr('text-anchor','middle')
-    .text('PC1 (Valence, Energy, Danceability)');
-
-  g.append('g').call(d3.axisLeft(yScale).ticks(6))
-    .append('text')
-    .attr('transform','rotate(-90)')
-    .attr('x',-H/2).attr('y',-42)
-    .attr('fill','#333').attr('font-size','12px').attr('font-weight','bold')
-    .attr('text-anchor','middle')
-    .text('PC2 (Acousticness)');
-
-  g.selectAll('.pca-dot')
-    .data(DATA).enter().append('circle')
-    .attr('class','pca-dot')
-    .attr('r', 4)
-    .attr('cx', d => xScale(d.pca1))
-    .attr('cy', d => yScale(d.pca2))
-    .attr('fill', d => popularityColor(d.popularity))
-    .attr('stroke','#fff').attr('stroke-width',1)
-    .attr('opacity', 0.75)
-    .on('mouseenter', function(event, d) {
-      d3.select(this).transition().duration(150).attr('r',7).attr('opacity',1)
-        .attr('stroke','#FFC107').attr('stroke-width',2);
-      showTip(`
-        <strong>${d.name}</strong><br/>
-        <span style="color:#ccc;font-size:11px">${d.artists} · ${d.year}</span><br/>
-        <hr style="border:none;border-top:1px solid #555;margin:4px 0">
-        Popularity: <b>${(d.popularity*100).toFixed(0)}%</b><br/>
-        PC1: <b>${d.pca1.toFixed(3)}</b><br/>
-        PC2: <b>${d.pca2.toFixed(3)}</b>
-      `, event);
-    })
-    .on('mousemove', (event) => moveTip(event))
-    .on('mouseleave', function() {
-      d3.select(this).transition().duration(150).attr('r',4).attr('opacity',.75)
-        .attr('stroke','#fff').attr('stroke-width',1);
-      hideTip();
-    });
-
-  [['Low Popularity','#667eea'],['High Popularity','#FFC107']].forEach(([label,color],i) => {
-    const lg = g.append('g').attr('transform',`translate(${W-140},${12+i*24})`);
-    lg.append('circle').attr('r',5).attr('fill',color);
-    lg.append('text').attr('x',12).attr('y',4)
-      .attr('font-size','12px').attr('fill','#333').text(label);
-  });
-}
-</script>
+<script src="{{ url_for('static', filename='js/state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/projection.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/parallel.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/radviz.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/star.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/joyplot.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/treemap.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/network.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts/extras.js') }}"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
